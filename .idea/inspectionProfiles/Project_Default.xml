@@ -1,0 +1,79 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyInterpreterInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="false" level="WARNING" enabled_by_default="false">
+      <option name="ignoredPackages">
+        <list>
+          <option value="aiofiles" />
+          <option value="aiogram" />
+          <option value="aiohappyeyeballs" />
+          <option value="aiohttp" />
+          <option value="aiosignal" />
+          <option value="alembic" />
+          <option value="annotated-types" />
+          <option value="anyio" />
+          <option value="asyncpg" />
+          <option value="attrs" />
+          <option value="bcrypt" />
+          <option value="beautifulsoup4" />
+          <option value="certifi" />
+          <option value="cffi" />
+          <option value="charset-normalizer" />
+          <option value="click" />
+          <option value="contourpy" />
+          <option value="cycler" />
+          <option value="ecdsa" />
+          <option value="fastapi" />
+          <option value="fonttools" />
+          <option value="frozenlist" />
+          <option value="greenlet" />
+          <option value="h11" />
+          <option value="idna" />
+          <option value="kiwisolver" />
+          <option value="magic-filter" />
+          <option value="Mako" />
+          <option value="MarkupSafe" />
+          <option value="matplotlib" />
+          <option value="multidict" />
+          <option value="numpy" />
+          <option value="outcome" />
+          <option value="packaging" />
+          <option value="pandas" />
+          <option value="passlib" />
+          <option value="pillow" />
+          <option value="propcache" />
+          <option value="pyasn1" />
+          <option value="pycparser" />
+          <option value="pydantic" />
+          <option value="pydantic_core" />
+          <option value="pyparsing" />
+          <option value="PySocks" />
+          <option value="python-dateutil" />
+          <option value="python-dotenv" />
+          <option value="python-jose" />
+          <option value="pytz" />
+          <option value="requests" />
+          <option value="rsa" />
+          <option value="selenium" />
+          <option value="six" />
+          <option value="sniffio" />
+          <option value="sortedcontainers" />
+          <option value="soupsieve" />
+          <option value="SQLAlchemy" />
+          <option value="starlette" />
+          <option value="trio" />
+          <option value="trio-websocket" />
+          <option value="typing_extensions" />
+          <option value="tzdata" />
+          <option value="urllib3" />
+          <option value="uvicorn" />
+          <option value="webdriver-manager" />
+          <option value="websocket-client" />
+          <option value="wsproto" />
+          <option value="yarl" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
