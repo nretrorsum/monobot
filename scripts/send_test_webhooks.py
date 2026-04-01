@@ -4,7 +4,7 @@
 
 Використання:
     uv run python scripts/send_test_webhooks.py
-    uv run python scripts/send_test_webhooks.py --url http://localhost:8000/webhook
+    uv run python scripts/send_test_webhooks.py --url http://localhost:8000/transaction/webhook
     uv run python scripts/send_test_webhooks.py --index 2  # надіслати лише одну транзакцію
 """
 
@@ -12,7 +12,7 @@ import argparse
 import time
 import httpx
 
-BASE_URL = "http://localhost:8000/webhook"
+BASE_URL = "http://localhost:8000/transaction/webhook"
 ACCOUNT_ID = "test_account_id_000"
 
 # amount у копійках, від'ємне — витрата, додатне — надходження

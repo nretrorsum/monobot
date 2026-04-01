@@ -9,6 +9,12 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://monobot:monobot@localhost:5432/monobot",
 )
 
+SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
+ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
+SECURE_COOKIES: bool = os.getenv("SECURE_COOKIES", "true").lower() == "true"
+
 engine = create_async_engine(DATABASE_URL)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 

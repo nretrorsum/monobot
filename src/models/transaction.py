@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.models import BaseUuidModel
+from src.models.base import BaseUuidModel
 
 
 class UserTransaction(BaseUuidModel):
@@ -22,8 +22,8 @@ class UserTransaction(BaseUuidModel):
     cashback_amount: Mapped[int] = mapped_column(BigInteger, default=0)
     balance: Mapped[int] = mapped_column(BigInteger)
     hold: Mapped[bool] = mapped_column(Boolean, default=False)
-    comment: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    receipt_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    counter_edrpou: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    counter_iban: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    counter_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    comment: Mapped[str] = mapped_column(String(512), nullable=True)
+    receipt_id: Mapped[str] = mapped_column(String(128), nullable=True)
+    counter_edrpou: Mapped[str] = mapped_column(String(32), nullable=True)
+    counter_iban: Mapped[str] = mapped_column(String(64), nullable=True)
+    counter_name: Mapped[str] = mapped_column(String(256), nullable=True)
