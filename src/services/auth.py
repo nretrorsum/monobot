@@ -58,8 +58,21 @@ class AuthService:
                 result = await self.session.execute(
                     select(UserAccount).where(UserAccount.account_id == acc_id)
                 )
-                if not result.scalar_one_or_none():
-                    self.session.add(UserAccount(user_id=user_id, account_id=acc_id))
+                existing_account = result.scalar_one_or_none()
+                if existing_account:
+                    existing_account.currency_code = acc.get("currencyCode")
+                    existing_account.account_type = acc.get("type")
+                    masked = acc.get("maskedPan", [])
+                    existing_account.display_name = masked[0] if masked else acc.get("iban")
+                else:
+                    masked = acc.get("maskedPan", [])
+                    self.session.add(UserAccount(
+                        user_id=user_id,
+                        account_id=acc_id,
+                        currency_code=acc.get("currencyCode"),
+                        account_type=acc.get("type"),
+                        display_name=masked[0] if masked else acc.get("iban"),
+                    ))
                     logger.info("Linked account %s to user %s", acc_id, user_id)
 
             await self.session.commit()

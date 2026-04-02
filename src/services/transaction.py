@@ -19,10 +19,13 @@ class TransactionService:
         )
         return result.scalar_one_or_none()
 
-    async def create_transaction(self, data: StatementItem, user_id) -> UserTransaction:
+    async def create_transaction(
+        self, data: StatementItem, user_id, account_id: str | None = None,
+    ) -> UserTransaction:
         transaction = UserTransaction(
             transaction_id=data.transaction_id,
             user_id=user_id,
+            account_id=account_id,
             time=data.time,
             description=data.description,
             mcc=data.mcc,

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, SmallInteger, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import BaseUuidModel
@@ -8,8 +8,14 @@ from src.models.base import BaseUuidModel
 
 class UserTransaction(BaseUuidModel):
     __tablename__ = "user_transaction"
+    __table_args__ = (
+        Index("ix_user_transaction_account_time", "account_id", "time"),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), index=True)
+    account_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("user_account.account_id"), index=True, nullable=True
+    )
     transaction_id: Mapped[str] = mapped_column(String(64), unique=True)
     time: Mapped[int] = mapped_column(BigInteger, index=True)
     description: Mapped[str] = mapped_column(String(512))

@@ -15,6 +15,7 @@ setup_logging()
 from src.routers.transaction import transaction_router
 from src.routers.auth import auth_router
 from src.routers.jwt_auth import jwt_auth_router
+from src.routers.balance import balance_router
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -37,6 +38,7 @@ if config.CORS_ORIGINS:
 app.include_router(transaction_router)
 app.include_router(auth_router)
 app.include_router(jwt_auth_router, prefix="/auth", tags=["auth"])
+app.include_router(balance_router)
 
 
 @app.get("/health")
