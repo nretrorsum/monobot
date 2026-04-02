@@ -41,7 +41,7 @@ app.include_router(jwt_auth_router, prefix="/auth", tags=["auth"])
 
 @app.get("/health")
 async def health(db: AsyncSession = Depends(config.get_session)):
-    result = {"status": "ok", "db": "ok", "redis": "ok"}
+    result = {"status": "ok", "db": "ok"}
     status_code = 200
 
     try:
@@ -51,15 +51,16 @@ async def health(db: AsyncSession = Depends(config.get_session)):
         result["status"] = "degraded"
         status_code = 503
 
-    try:
-        import redis.asyncio as aioredis
-
-        r = aioredis.from_url(config.REDIS_URL)
-        await r.ping()
-        await r.aclose()
-    except Exception:
-        result["redis"] = "error"
-        result["status"] = "degraded"
-        status_code = 503
+    # TODO: uncomment when Redis is enabled
+    # try:
+    #     import redis.asyncio as aioredis
+    #
+    #     r = aioredis.from_url(config.REDIS_URL)
+    #     await r.ping()
+    #     await r.aclose()
+    # except Exception:
+    #     result["redis"] = "error"
+    #     result["status"] = "degraded"
+    #     status_code = 503
 
     return JSONResponse(result, status_code=status_code)

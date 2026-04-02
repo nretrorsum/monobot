@@ -15,7 +15,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 
 REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
 SECURE_COOKIES: bool = os.getenv("SECURE_COOKIES", "true").lower() == "true"
 DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
-REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# TODO: uncomment when Redis is enabled
+# REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 _cors_raw = os.getenv("CORS_ORIGINS", "")
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
