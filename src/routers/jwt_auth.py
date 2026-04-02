@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,10 +24,13 @@ from src.services.jwt_auth import (
 )
 
 jwt_auth_router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @jwt_auth_router.post("/register")
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     data: RegisterRequest,
     response: Response,
     client_type: ClientType,
@@ -43,7 +48,9 @@ async def register(
 
 
 @jwt_auth_router.post("/login")
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     data: LoginRequest,
     response: Response,
     client_type: ClientType,
@@ -61,6 +68,7 @@ async def login(
 
 
 @jwt_auth_router.post("/refresh")
+@limiter.limit("10/minute")
 async def refresh_tokens(
     request: Request,
     response: Response,

@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Obsidian Vault
+Documentation and notes are stored in: /Users/daniilzaplyvanyi/Obsidian Vault/Projects/monobot/
+
+When creating documentation, save it to:
+- /Users/daniilzaplyvanyi/Obsidian Vault/Projects/monobot/
+
 ## Project Overview
 
 Monobot — Python 3.13 project using FastAPI and SQLAlchemy, managed with uv.

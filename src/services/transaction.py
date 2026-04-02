@@ -1,6 +1,10 @@
+import uuid
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.transaction import StatementItem
+from src.models.account import UserAccount
 from src.models.transaction import UserTransaction
 
 
@@ -8,6 +12,12 @@ class TransactionService:
 
     def __init__(self, session):
         self.session: AsyncSession = session
+
+    async def get_user_id_by_account(self, account_id: str) -> uuid.UUID | None:
+        result = await self.session.execute(
+            select(UserAccount.user_id).where(UserAccount.account_id == account_id)
+        )
+        return result.scalar_one_or_none()
 
     async def create_transaction(self, data: StatementItem, user_id) -> UserTransaction:
         transaction = UserTransaction(

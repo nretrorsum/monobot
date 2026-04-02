@@ -10,3 +10,6 @@ celery_app = Celery(
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
 )
+
+celery_app.conf.beat_scheduler = "redbeat.RedBeatScheduler"
+celery_app.conf.redbeat_redis_url = CELERY_BROKER_URL

@@ -1,6 +1,6 @@
 import aiohttp
 
-MONO_API_URL = "https://api.mono.ai/"
+MONO_API_URL = "https://api.monobank.ua/"
 
 class MonoRequestService:
     def __init__(self):
