@@ -12,4 +12,4 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 RUN uv sync --no-dev
 
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
+CMD ["sh", "start.sh"]
