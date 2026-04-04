@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monobot Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif; background: #121212; color: #fff; min-height: 100vh; }
+
+/* Login overlay */
+#login-overlay { position: fixed; inset: 0; background: #121212; display: flex; align-items: center; justify-content: center; z-index: 100; }
+#login-overlay.hidden { display: none; }
+.login-box { background: #1e1e1e; border-radius: 16px; padding: 40px; width: 360px; max-width: 90vw; }
+.login-box h1 { font-size: 28px; margin-bottom: 8px; }
+.login-box p { color: #9e9e9e; margin-bottom: 24px; font-size: 14px; }
+.login-box input { width: 100%; padding: 14px 16px; background: #2a2a2a; border: 1px solid #333; border-radius: 12px; color: #fff; font-size: 16px; margin-bottom: 12px; outline: none; }
+.login-box input:focus { border-color: #a259ff; }
+.login-box button { width: 100%; padding: 14px; background: #a259ff; color: #000; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+.login-box button:hover { background: #8b3ee0; }
+#login-error { color: #e44848; font-size: 13px; margin-top: 8px; display: none; }
+
+/* Dashboard */
+#dashboard { display: none; max-width: 1200px; margin: 0 auto; padding: 20px; }
+#dashboard.visible { display: block; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 24px; font-weight: 700; }
+.header h1 span { color: #a259ff; }
+.btn-logout { background: none; border: 1px solid #333; color: #9e9e9e; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-size: 13px; }
+.btn-logout:hover { border-color: #e44848; color: #e44848; }
+
+/* Filters */
+.filters { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+.filters input[type="date"] { background: #1e1e1e; border: 1px solid #333; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+.filters input[type="date"]:focus { border-color: #a259ff; outline: none; }
+.filters select { background: #1e1e1e; border: 1px solid #333; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 14px; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.quick-btn { background: #1e1e1e; border: 1px solid #333; color: #9e9e9e; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; }
+.quick-btn:hover, .quick-btn.active { border-color: #a259ff; color: #a259ff; }
+.btn-apply { background: #a259ff; color: #000; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
+.btn-apply:hover { background: #8b3ee0; }
+
+/* Balance cards */
+.balance-cards { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.balance-card { background: #1e1e1e; border-radius: 16px; padding: 20px 24px; flex: 1; min-width: 200px; }
+.balance-card .label { color: #9e9e9e; font-size: 13px; margin-bottom: 4px; }
+.balance-card .amount { font-size: 28px; font-weight: 700; }
+.balance-card .amount.positive { color: #4caf50; }
+.balance-card .currency { color: #9e9e9e; font-size: 14px; margin-top: 4px; }
+
+/* Summary cards */
+.summary-cards { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.summary-card { background: #1e1e1e; border-radius: 16px; padding: 16px 20px; flex: 1; min-width: 160px; }
+.summary-card .label { color: #9e9e9e; font-size: 12px; margin-bottom: 4px; }
+.summary-card .value { font-size: 20px; font-weight: 600; }
+.summary-card .value.green { color: #4caf50; }
+.summary-card .value.red { color: #e44848; }
+.summary-card .value.yellow { color: #a259ff; }
+.summary-card .sub { color: #9e9e9e; font-size: 12px; margin-top: 2px; }
+
+/* Charts grid */
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.chart-container { background: #1e1e1e; border-radius: 16px; padding: 20px; }
+.chart-container h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #9e9e9e; }
+.chart-container canvas { max-height: 300px; }
+
+/* Loading */
+.loading { text-align: center; padding: 60px; color: #9e9e9e; }
+
+/* Responsive */
+@media (max-width: 500px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .balance-card .amount { font-size: 22px; }
+  .filters { flex-direction: column; align-items: stretch; }
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h1>Mono<span style="color:#a259ff">bot</span></h1>
+    <p>Увійдіть для перегляду дашборду</p>
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="Email" required autocomplete="email">
+      <input type="password" id="login-password" placeholder="Пароль" required autocomplete="current-password">
+      <button type="submit">Увійти</button>
+      <div id="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <div class="header">
+    <h1>Mono<span>bot</span></h1>
+    <button class="btn-logout" id="btn-logout">Вийти</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="date" id="from-date">
+    <span style="color:#9e9e9e">—</span>
+    <input type="date" id="to-date">
+    <select id="account-select">
+      <option value="">Всі рахунки</option>
+    </select>
+    <button class="quick-btn" data-period="this-month">Цей місяць</button>
+    <button class="quick-btn" data-period="last-month">Минулий</button>
+    <button class="quick-btn" data-period="90-days">90 днів</button>
+    <button class="btn-apply" id="btn-apply">Застосувати</button>
+  </div>
+
+  <!-- Balance cards -->
+  <div class="balance-cards" id="balance-cards"></div>
+
+  <!-- Summary -->
+  <div class="summary-cards" id="summary-cards"></div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-container">
+      <h3>Доходи vs Витрати</h3>
+      <canvas id="chart-income-expenses"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>Витрати по категоріях</h3>
+      <canvas id="chart-categories"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>Історія балансу</h3>
+      <canvas id="chart-balance-history"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>Burn Rate (витрати/день)</h3>
+      <canvas id="chart-burn-rate"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ──
+const CURRENCY = {
+  980: { code: 'UAH', symbol: '\u20B4' },
+  840: { code: 'USD', symbol: '$' },
+  978: { code: 'EUR', symbol: '\u20AC' },
+};
+const CHART_COLORS = ['#a259ff', '#e44848', '#4caf50', '#42a5f5', '#ab47bc', '#26a69a', '#ff7043', '#78909c'];
+
+function formatMoney(kopiykas, currencyCode = 980) {
+  const c = CURRENCY[currencyCode] || { symbol: '' };
+  return (kopiykas / 100).toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + c.symbol;
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' });
+}
+
+function toISODate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+// ── API helper ──
+async function api(url) {
+  let res = await fetch(url, { credentials: 'include' });
+  if (res.status === 401) {
+    const refresh = await fetch('/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (refresh.ok) {
+      res = await fetch(url, { credentials: 'include' });
+    } else {
+      showLogin();
+      throw new Error('Session expired');
+    }
+  }
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+// ── Auth ──
+const loginOverlay = document.getElementById('login-overlay');
+const dashboard = document.getElementById('dashboard');
+const loginForm = document.getElementById('login-form');
+const loginError = document.getElementById('login-error');
+
+function showLogin() {
+  loginOverlay.classList.remove('hidden');
+  dashboard.classList.remove('visible');
+}
+
+function showDashboard() {
+  loginOverlay.classList.add('hidden');
+  dashboard.classList.add('visible');
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.style.display = 'none';
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    if (res.status === 429) {
+      loginError.textContent = 'Забагато спроб. Зачекайте хвилину.';
+      loginError.style.display = 'block';
+      return;
+    }
+    if (!res.ok) {
+      loginError.textContent = 'Невірний email або пароль';
+      loginError.style.display = 'block';
+      return;
+    }
+    showDashboard();
+    loadAll();
+  } catch {
+    loginError.textContent = 'Помилка з\'єднання';
+    loginError.style.display = 'block';
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+  showLogin();
+});
+
+// ── Filters ──
+const fromDateEl = document.getElementById('from-date');
+const toDateEl = document.getElementById('to-date');
+const accountSelect = document.getElementById('account-select');
+
+function setDefaultDates() {
+  const now = new Date();
+  fromDateEl.value = toISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+  toDateEl.value = toISODate(now);
+}
+
+document.querySelectorAll('.quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const now = new Date();
+    const period = btn.dataset.period;
+    if (period === 'this-month') {
+      fromDateEl.value = toISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+      toDateEl.value = toISODate(now);
+    } else if (period === 'last-month') {
+      fromDateEl.value = toISODate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+      toDateEl.value = toISODate(new Date(now.getFullYear(), now.getMonth(), 0));
+    } else if (period === '90-days') {
+      fromDateEl.value = toISODate(new Date(now.getTime() - 90 * 86400000));
+      toDateEl.value = toISODate(now);
+    }
+    loadFiltered();
+  });
+});
+
+document.getElementById('btn-apply').addEventListener('click', () => {
+  document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+  loadFiltered();
+});
+
+function buildParams() {
+  const params = new URLSearchParams();
+  if (fromDateEl.value) params.set('from_date', fromDateEl.value);
+  if (toDateEl.value) params.set('to_date', toDateEl.value);
+  if (accountSelect.value) params.set('account_id', accountSelect.value);
+  return params.toString();
+}
+
+// ── Charts ──
+let charts = {};
+
+function getChartDefaults() {
+  return {
+    color: '#9e9e9e',
+    borderColor: 'rgba(255,255,255,0.06)',
+    plugins: { legend: { labels: { color: '#9e9e9e', font: { size: 12 } } } },
+    scales: {
+      x: { ticks: { color: '#9e9e9e', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
+      y: { ticks: { color: '#9e9e9e', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
+    },
+  };
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+}
+
+function renderIncomeExpenses(data) {
+  const ctx = document.getElementById('chart-income-expenses');
+  if (charts.ie) charts.ie.destroy();
+  charts.ie = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Доходи', 'Витрати', 'Заощадження'],
+      datasets: [{
+        data: [data.total_income / 100, data.total_expenses / 100, data.net_savings / 100],
+        backgroundColor: ['#4caf50', '#e44848', data.net_savings >= 0 ? '#a259ff' : '#e44848'],
+        borderRadius: 8,
+      }],
+    },
+    options: {
+      ...getChartDefaults(),
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        ...getChartDefaults().scales,
+        y: { ...getChartDefaults().scales.y, ticks: { ...getChartDefaults().scales.y.ticks, callback: v => formatMoney(v * 100) } },
+      },
+    },
+  });
+}
+
+function renderCategories(data) {
+  const ctx = document.getElementById('chart-categories');
+  if (charts.cat) charts.cat.destroy();
+  charts.cat = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.display_name),
+      datasets: [{
+        data: data.map(d => d.total_amount / 100),
+        backgroundColor: CHART_COLORS,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'right', labels: { color: '#9e9e9e', font: { size: 12 }, padding: 12 } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${formatMoney(ctx.raw * 100)} (${data[ctx.dataIndex]?.percentage}%)` } },
+      },
+    },
+  });
+}
+
+function renderBalanceHistory(data) {
+  const ctx = document.getElementById('chart-balance-history');
+  if (charts.hist) charts.hist.destroy();
+  charts.hist = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => formatDate(d.date)),
+      datasets: [{
+        label: 'Баланс',
+        data: data.map(d => d.closing_balance / 100),
+        borderColor: '#a259ff',
+        backgroundColor: 'rgba(162, 89, 255, 0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+      }],
+    },
+    options: {
+      ...getChartDefaults(),
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        ...getChartDefaults().scales,
+        y: { ...getChartDefaults().scales.y, ticks: { ...getChartDefaults().scales.y.ticks, callback: v => formatMoney(v * 100) } },
+      },
+    },
+  });
+}
+
+function renderBurnRate(data) {
+  const ctx = document.getElementById('chart-burn-rate');
+  if (charts.burn) charts.burn.destroy();
+  const breakdown = data.daily_breakdown || [];
+  charts.burn = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: breakdown.map(d => formatDate(d.date)),
+      datasets: [
+        {
+          label: 'Витрати',
+          data: breakdown.map(d => d.expenses / 100),
+          backgroundColor: 'rgba(228, 72, 72, 0.5)',
+          borderRadius: 4,
+          order: 2,
+        },
+        {
+          label: 'Середня 7д',
+          data: breakdown.map(d => d.moving_avg_7d != null ? d.moving_avg_7d / 100 : null),
+          type: 'line',
+          borderColor: '#a259ff',
+          backgroundColor: 'transparent',
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      ...getChartDefaults(),
+      responsive: true,
+      plugins: { legend: { labels: { color: '#9e9e9e' } } },
+      scales: {
+        ...getChartDefaults().scales,
+        y: { ...getChartDefaults().scales.y, ticks: { ...getChartDefaults().scales.y.ticks, callback: v => formatMoney(v * 100) } },
+      },
+    },
+  });
+}
+
+// ── Summary cards ──
+function renderSummary(incomeExpenses, burnRate) {
+  const el = document.getElementById('summary-cards');
+  const trend = burnRate.trend_percentage;
+  const trendText = trend != null ? (trend > 0 ? `+${trend}%` : `${trend}%`) : '—';
+  const trendClass = trend != null ? (trend > 0 ? 'red' : 'green') : '';
+
+  el.innerHTML = `
+    <div class="summary-card">
+      <div class="label">Доходи</div>
+      <div class="value green">${formatMoney(incomeExpenses.total_income)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Витрати</div>
+      <div class="value red">${formatMoney(incomeExpenses.total_expenses)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Заощадження</div>
+      <div class="value ${incomeExpenses.net_savings >= 0 ? 'green' : 'red'}">${formatMoney(incomeExpenses.net_savings)}</div>
+      ${incomeExpenses.savings_rate != null ? `<div class="sub">${incomeExpenses.savings_rate}% від доходу</div>` : ''}
+    </div>
+    <div class="summary-card">
+      <div class="label">Середня/день</div>
+      <div class="value yellow">${formatMoney(burnRate.avg_daily_expenses)}</div>
+      <div class="sub ${trendClass}">${trendText} vs мин. період</div>
+    </div>
+  `;
+}
+
+// ── Balance cards ──
+function renderBalanceCards(summary) {
+  const el = document.getElementById('balance-cards');
+  el.innerHTML = summary.accounts.map(acc => `
+    <div class="balance-card">
+      <div class="label">${acc.display_name || acc.account_id.slice(0, 8)}</div>
+      <div class="amount ${acc.balance >= 0 ? 'positive' : ''}">${formatMoney(acc.balance, acc.currency_code)}</div>
+      <div class="currency">${CURRENCY[acc.currency_code]?.code || acc.currency_code}</div>
+    </div>
+  `).join('');
+
+  // Populate account selector
+  const current = accountSelect.value;
+  accountSelect.innerHTML = '<option value="">Всі рахунки</option>' +
+    summary.accounts.map(acc =>
+      `<option value="${acc.account_id}" ${acc.account_id === current ? 'selected' : ''}>${acc.display_name || CURRENCY[acc.currency_code]?.code || acc.account_id.slice(0, 8)}</option>`
+    ).join('');
+}
+
+// ── Data loading ──
+async function loadAll() {
+  setDefaultDates();
+  try {
+    const [summary] = await Promise.all([api('/balance/')]);
+    renderBalanceCards(summary);
+    await loadFiltered();
+  } catch (err) {
+    console.error('Load error:', err);
+  }
+}
+
+async function loadFiltered() {
+  const q = buildParams();
+  try {
+    const [history, incomeExpenses, categories, burnRate] = await Promise.all([
+      api(`/balance/history?${q}`),
+      api(`/balance/income-expenses?${q}`),
+      api(`/balance/categories?${q}`),
+      api(`/balance/burn-rate?${q}`),
+    ]);
+    renderSummary(incomeExpenses, burnRate);
+    renderIncomeExpenses(incomeExpenses);
+    renderCategories(categories);
+    renderBalanceHistory(history);
+    renderBurnRate(burnRate);
+  } catch (err) {
+    console.error('Filter load error:', err);
+  }
+}
+
+// ── Init ──
+(async () => {
+  try {
+    await api('/auth/me');
+    showDashboard();
+    loadAll();
+  } catch {
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>

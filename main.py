@@ -1,6 +1,6 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -39,6 +39,11 @@ app.include_router(transaction_router)
 app.include_router(auth_router)
 app.include_router(jwt_auth_router, prefix="/auth", tags=["auth"])
 app.include_router(balance_router)
+
+
+@app.get("/")
+async def dashboard():
+    return FileResponse("static/index.html")
 
 
 @app.get("/health")
