@@ -10,7 +10,9 @@ from src.models.mcc_category import MccCategory
 from src.models.transaction import UserTransaction
 from src.schemas.balance import (
     AccountBalanceResponse,
+    BurnRateResponse,
     CategorySpendingResponse,
+    DailyExpensesItem,
     DailySummaryResponse,
     IncomeVsExpensesResponse,
     UserBalanceSummary,
@@ -26,6 +28,7 @@ class BalanceService:
             select(UserAccount).where(UserAccount.account_id == account_id)
         )
         account = account.scalar_one_or_none()
+
         if not account:
             return None
 
@@ -50,7 +53,7 @@ class BalanceService:
             select(UserAccount).where(UserAccount.user_id == user_id)
         )
         accounts = accounts.scalars().all()
-
+        print(f'Found {accounts} accounts')
         results = []
         for account in accounts:
             last_tx = await self.session.execute(
@@ -60,7 +63,7 @@ class BalanceService:
                 .limit(1)
             )
             row = last_tx.first()
-
+            print(f'Found {row} transactions')
             results.append(AccountBalanceResponse(
                 account_id=account.account_id,
                 currency_code=account.currency_code or 0,
@@ -216,6 +219,121 @@ class BalanceService:
             total_expenses=total_expenses,
             net_savings=net_savings,
             savings_rate=round(savings_rate, 2) if savings_rate is not None else None,
+        )
+
+    async def get_burn_rate(
+        self,
+        user_id: UUID,
+        from_timestamp: int,
+        to_timestamp: int,
+        account_id: str | None = None,
+    ) -> BurnRateResponse:
+        # Розширюємо період на 30 днів назад для ковзної середньої
+        extended_from = from_timestamp - 30 * 86400
+
+        tx_date = func.date(func.to_timestamp(UserTransaction.time))
+        expenses_expr = func.coalesce(
+            func.sum(case((UserTransaction.amount < 0, func.abs(UserTransaction.amount)))), 0
+        )
+
+        query = (
+            select(tx_date.label("date"), expenses_expr.label("expenses"))
+            .where(
+                UserTransaction.user_id == user_id,
+                UserTransaction.time >= extended_from,
+                UserTransaction.time < to_timestamp,
+            )
+            .group_by(tx_date)
+            .order_by(tx_date)
+        )
+        if account_id:
+            query = query.where(UserTransaction.account_id == account_id)
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        # Словник дата → витрати
+        expenses_map: dict[datetime.date, int] = {row.date: row.expenses for row in rows}
+
+        # Повний діапазон дат від extended_from до to_timestamp (UTC)
+        _utc = datetime.timezone.utc
+        extended_start = datetime.datetime.fromtimestamp(extended_from, tz=_utc).date()
+        period_start = datetime.datetime.fromtimestamp(from_timestamp, tz=_utc).date()
+        period_end = datetime.datetime.fromtimestamp(to_timestamp, tz=_utc).date() - datetime.timedelta(days=1)
+
+        all_dates: list[datetime.date] = []
+        current = extended_start
+        while current <= period_end:
+            all_dates.append(current)
+            current += datetime.timedelta(days=1)
+
+        # Ковзні середні для кожного дня
+        def moving_avg(target_date: datetime.date, window: int) -> int | None:
+            total = 0
+            for i in range(window):
+                d = target_date - datetime.timedelta(days=i)
+                total += expenses_map.get(d, 0)
+            return total // window
+
+        # Формуємо daily_breakdown тільки для запитаного періоду
+        daily_breakdown: list[DailyExpensesItem] = []
+        total_expenses = 0
+        days_in_period = 0
+
+        current = period_start
+        while current <= period_end:
+            exp = expenses_map.get(current, 0)
+            total_expenses += exp
+            days_in_period += 1
+            daily_breakdown.append(DailyExpensesItem(
+                date=current,
+                expenses=exp,
+                moving_avg_7d=moving_avg(current, 7),
+            ))
+            current += datetime.timedelta(days=1)
+
+        avg_daily = total_expenses // days_in_period if days_in_period > 0 else 0
+        last_day = period_end if days_in_period > 0 else None
+
+        ma_7d = moving_avg(last_day, 7) if last_day else None
+        ma_30d = moving_avg(last_day, 30) if last_day else None
+
+        # Попередній період для тренду
+        prev_from = from_timestamp - days_in_period * 86400
+        prev_to = from_timestamp
+
+        prev_query = (
+            select(expenses_expr.label("expenses"))
+            .where(
+                UserTransaction.user_id == user_id,
+                UserTransaction.time >= prev_from,
+                UserTransaction.time < prev_to,
+            )
+        )
+        if account_id:
+            prev_query = prev_query.where(UserTransaction.account_id == account_id)
+
+        prev_result = await self.session.execute(prev_query)
+        prev_total = prev_result.scalar_one()
+
+        prev_avg = prev_total // days_in_period if days_in_period > 0 else 0
+        trend = (
+            round((avg_daily - prev_avg) / prev_avg * 100, 1)
+            if prev_avg > 0
+            else None
+        )
+
+        return BurnRateResponse(
+            period_start=period_start,
+            period_end=period_end,
+            total_expenses=total_expenses,
+            days_in_period=days_in_period,
+            avg_daily_expenses=avg_daily,
+            moving_avg_7d=ma_7d,
+            moving_avg_30d=ma_30d,
+            prev_period_avg_daily=prev_avg if prev_avg > 0 else None,
+            trend_percentage=trend,
+            daily_breakdown=daily_breakdown,
         )
 
     async def get_spending_by_category(

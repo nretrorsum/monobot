@@ -47,6 +47,8 @@ async def create_transaction(
             logger.warning("Unknown account: %s", account_id)
             raise HTTPException(status_code=404, detail="Account not linked to any user")
 
+        await service._save_inexistent_account(account_id, user_id, item)
+
         logger.info("Account %s resolved to user %s", account_id, user_id)
         await service.create_transaction(item, user_id=user_id, account_id=account_id)
         logger.info("Transaction %s saved for user %s", item.transaction_id, user_id)

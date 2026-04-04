@@ -8,6 +8,7 @@ from src.core.config import get_session
 from src.core.dependencies import CurrentUser
 from src.schemas.balance import (
     AccountBalanceResponse,
+    BurnRateResponse,
     CategorySpendingResponse,
     DailySummaryResponse,
     IncomeVsExpensesResponse,
@@ -81,6 +82,22 @@ async def get_income_vs_expenses(
 
     service = BalanceService(session)
     return await service.get_income_vs_expenses(user.id, from_ts, to_ts, account_id)
+
+
+@balance_router.get("/burn-rate")
+async def get_burn_rate(
+    user: CurrentUser,
+    account_id: str | None = Query(None),
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+) -> BurnRateResponse:
+    default_from, default_to = _default_period()
+    from_ts = _date_to_timestamp(from_date or default_from)
+    to_ts = _date_to_timestamp(to_date or default_to) + 86400
+
+    service = BalanceService(session)
+    return await service.get_burn_rate(user.id, from_ts, to_ts, account_id)
 
 
 @balance_router.get("/categories")

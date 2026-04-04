@@ -35,8 +35,8 @@ class AuthService:
                 self.session.add(existing)
                 await self.session.commit()
                 await self.session.refresh(existing)
-
-            await self._sync_mono_accounts(user_id, raw_token)
+            #Commented due to blocking reason
+            #await self._sync_mono_accounts(user_id, raw_token)
             return existing
         except IntegrityError as e:
             await self.session.rollback()

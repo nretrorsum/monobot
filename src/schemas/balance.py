@@ -48,3 +48,22 @@ class IncomeVsExpensesResponse(BaseModel):
     total_expenses: int
     net_savings: int
     savings_rate: float | None
+
+
+class DailyExpensesItem(BaseModel):
+    date: date
+    expenses: int
+    moving_avg_7d: int | None
+
+
+class BurnRateResponse(BaseModel):
+    period_start: date
+    period_end: date
+    total_expenses: int
+    days_in_period: int
+    avg_daily_expenses: int
+    moving_avg_7d: int | None
+    moving_avg_30d: int | None
+    prev_period_avg_daily: int | None
+    trend_percentage: float | None
+    daily_breakdown: list[DailyExpensesItem]

@@ -12,7 +12,7 @@ class UserTransaction(BaseUuidModel):
         Index("ix_user_transaction_account_time", "account_id", "time"),
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), index=True, nullable=True) #nullable true to evade user sync and requesting mono API from server
     account_id: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("user_account.account_id"), index=True, nullable=True
     )

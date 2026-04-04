@@ -223,3 +223,126 @@ class TestGetSpendingByCategory:
         # MCC 6012 (financial/income) should not appear since we only count amount < 0
         cat_names = [c.category_name for c in categories]
         assert "financial" not in cat_names
+
+
+class TestGetBurnRate:
+
+    async def test_basic_burn_rate(
+        self, session: AsyncSession, test_user: User, test_account, sample_transactions,
+    ):
+        """avg_daily_expenses = total_expenses / days_in_period."""
+        base_time = 1711929600
+        service = BalanceService(session)
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time,
+            to_timestamp=base_time + 86400 * 3,
+        )
+
+        # Витрати: день1=195000, день2=20500, день3=230000 = 445500
+        assert result.total_expenses == 445500
+        assert result.days_in_period == 3
+        assert result.avg_daily_expenses == 445500 // 3
+
+    async def test_daily_breakdown_includes_all_days(
+        self, session: AsyncSession, test_user: User, test_account, extended_transactions,
+    ):
+        """Breakdown містить усі дні періоду, включно з днями без витрат."""
+        base_time = 1711929600
+        day = 86400
+        service = BalanceService(session)
+        # Тиждень 2: дні 7-13
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time + 7 * day,
+            to_timestamp=base_time + 14 * day,
+        )
+
+        assert result.days_in_period == 7
+        assert len(result.daily_breakdown) == 7
+
+        # День 11 (offset=4 в breakdown) має 0 витрат
+        day_11 = result.daily_breakdown[4]
+        assert day_11.expenses == 0
+
+    async def test_moving_avg_7d(
+        self, session: AsyncSession, test_user: User, test_account, extended_transactions,
+    ):
+        """Ковзна 7d рахується правильно."""
+        base_time = 1711929600
+        day = 86400
+        service = BalanceService(session)
+        # Період: дні 7-13
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time + 7 * day,
+            to_timestamp=base_time + 14 * day,
+        )
+
+        # moving_avg_7d для останнього дня (день 13):
+        # дні 7-13: 180000, 50000, 300000, 70000, 0, 110000, 140000
+        # sum = 850000, avg = 850000 // 7 = 121428
+        assert result.moving_avg_7d == 850000 // 7
+
+    async def test_trend_percentage(
+        self, session: AsyncSession, test_user: User, test_account, extended_transactions,
+    ):
+        """Тренд порівнює поточний період з попереднім."""
+        base_time = 1711929600
+        day = 86400
+        service = BalanceService(session)
+        # Поточний період: дні 7-13 (тиждень 2)
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time + 7 * day,
+            to_timestamp=base_time + 14 * day,
+        )
+
+        # Попередній період (дні 0-6): 120000+80000+150000+0+200000+60000+90000 = 700000
+        # prev_avg = 700000 // 7 = 100000
+        # Поточний (дні 7-13): 850000, avg = 850000 // 7 = 121428
+        # trend = (121428 - 100000) / 100000 * 100 = 21.4%
+        assert result.prev_period_avg_daily == 700000 // 7
+        assert result.trend_percentage is not None
+        assert result.trend_percentage > 0  # витрати зросли
+
+    async def test_no_transactions_returns_zeros(
+        self, session: AsyncSession, test_user: User, test_account,
+    ):
+        """Порожній період — нулі та None для тренду."""
+        service = BalanceService(session)
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=1000000000,
+            to_timestamp=1000000000 + 86400 * 3,
+        )
+
+        assert result.total_expenses == 0
+        assert result.avg_daily_expenses == 0
+        assert result.trend_percentage is None
+        assert result.prev_period_avg_daily is None
+        assert len(result.daily_breakdown) == 3
+
+    async def test_account_id_filter(
+        self, session: AsyncSession, test_user: User, test_account, sample_transactions,
+    ):
+        """Фільтрація по account_id працює."""
+        base_time = 1711929600
+        service = BalanceService(session)
+
+        result = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time,
+            to_timestamp=base_time + 86400 * 3,
+            account_id=test_account.account_id,
+        )
+        assert result.total_expenses == 445500
+
+        # Неіснуючий акаунт — нуль витрат
+        result_empty = await service.get_burn_rate(
+            user_id=test_user.id,
+            from_timestamp=base_time,
+            to_timestamp=base_time + 86400 * 3,
+            account_id="nonexistent",
+        )
+        assert result_empty.total_expenses == 0

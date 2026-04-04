@@ -1,12 +1,14 @@
 import uuid
+import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.transaction import StatementItem
 from src.models.account import UserAccount
 from src.models.transaction import UserTransaction
 
+logger = logging.getLogger(__name__)
 
 class TransactionService:
 
@@ -19,12 +21,34 @@ class TransactionService:
         )
         return result.scalar_one_or_none()
 
+    async def _save_inexistent_account(self, account_id: str, user_id: uuid.UUID, user_transaction: StatementItem) -> str | None:
+        result = await self.session.execute(
+            select(exists().where(UserAccount.account_id == account_id))
+        )
+        account_exists = result.scalar()
+
+        if not account_exists:
+            try:
+                user_account = UserAccount(
+                    user_id=user_id,
+                    account_id=account_id,
+                    currency_code=user_transaction.currency_code,
+                )
+                self.session.add(user_account)
+                await self.session.commit()
+                await self.session.refresh(user_account)
+                return user_account.account_id
+            except Exception as e:
+                await self.session.rollback()
+                logger.error(f"Error while saving unexistent account:{e}")
+        return account_id
+
     async def create_transaction(
-        self, data: StatementItem, user_id, account_id: str | None = None,
+        self, data: StatementItem, user_id: uuid.UUID | None, account_id: str | None = None,
     ) -> UserTransaction:
         transaction = UserTransaction(
             transaction_id=data.transaction_id,
-            user_id=user_id,
+            user_id=user_id if user_id else None,
             account_id=account_id,
             time=data.time,
             description=data.description,

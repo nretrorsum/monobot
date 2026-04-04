@@ -136,3 +136,81 @@ async def sample_transactions(
 
     await session.commit()
     return txs
+
+
+@pytest_asyncio.fixture
+async def extended_transactions(
+    session: AsyncSession, test_user: User, test_account: UserAccount,
+) -> list[UserTransaction]:
+    """Транзакції за 14 днів для тестування burn rate та ковзних середніх."""
+    base_time = 1711929600  # 2024-04-01 00:00:00 UTC
+    day = 86400
+
+    # Витрати по дням (в копійках): різні суми для перевірки ковзних середніх
+    daily_expenses = [
+        # Тиждень 1 (дні 0-6): попередній період для тренду
+        (0, -120000),   # день 0: 1200 грн
+        (1, -80000),    # день 1: 800 грн
+        (2, -150000),   # день 2: 1500 грн
+        (3, 0),         # день 3: 0 (пропуск — день без витрат)
+        (4, -200000),   # день 4: 2000 грн
+        (5, -60000),    # день 5: 600 грн
+        (6, -90000),    # день 6: 900 грн
+        # Тиждень 2 (дні 7-13): основний період
+        (7, -180000),   # день 7: 1800 грн
+        (8, -50000),    # день 8: 500 грн
+        (9, -300000),   # день 9: 3000 грн
+        (10, -70000),   # день 10: 700 грн
+        (11, 0),        # день 11: 0 (пропуск)
+        (12, -110000),  # день 12: 1100 грн
+        (13, -140000),  # день 13: 1400 грн
+    ]
+
+    txs = []
+    balance = 10000000  # стартовий баланс 100 000 грн
+
+    # Дохід на початку
+    tx = UserTransaction(
+        user_id=test_user.id,
+        account_id=test_account.account_id,
+        transaction_id="ext_income_001",
+        time=base_time,
+        description="Зарплата",
+        mcc=6012,
+        original_mcc=6012,
+        amount=10000000,
+        operation_amount=10000000,
+        currency_code=980,
+        commission_rate=0,
+        cashback_amount=0,
+        balance=balance,
+        hold=False,
+    )
+    session.add(tx)
+    txs.append(tx)
+
+    for i, (day_offset, amount) in enumerate(daily_expenses):
+        if amount == 0:
+            continue
+        balance += amount
+        tx = UserTransaction(
+            user_id=test_user.id,
+            account_id=test_account.account_id,
+            transaction_id=f"ext_tx_{i:04d}",
+            time=base_time + day_offset * day + 43200,  # опівдні
+            description=f"Витрата день {day_offset}",
+            mcc=5411,
+            original_mcc=5411,
+            amount=amount,
+            operation_amount=abs(amount),
+            currency_code=980,
+            commission_rate=0,
+            cashback_amount=0,
+            balance=balance,
+            hold=False,
+        )
+        session.add(tx)
+        txs.append(tx)
+
+    await session.commit()
+    return txs
