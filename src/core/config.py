@@ -18,6 +18,9 @@ DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 # TODO: uncomment when Redis is enabled
 # REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+TMA_URL: str = os.getenv("TMA_URL", "")
+
 _cors_raw = os.getenv("CORS_ORIGINS", "")
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 

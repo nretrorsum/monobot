@@ -3,8 +3,12 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from src.core.config import DEBUG, get_session
+from src.core.telegram_notify import notify_transaction
 from src.core.webhook_verify import verify_webhook_signature
+from src.models.user import User
 from src.schemas.transaction import WebhookPayload
 from src.services.transaction import TransactionService
 
@@ -52,4 +56,15 @@ async def create_transaction(
         logger.info("Account %s resolved to user %s", account_id, user_id)
         await service.create_transaction(item, user_id=user_id, account_id=account_id)
         logger.info("Transaction %s saved for user %s", item.transaction_id, user_id)
+
+        try:
+            result = await session.execute(
+                select(User.telegram_id).where(User.id == user_id)
+            )
+            telegram_id = result.scalar_one_or_none()
+            if telegram_id:
+                await notify_transaction(telegram_id, item)
+        except Exception:
+            logger.exception("Failed to notify user %s via Telegram", user_id)
+
         return {"status": "success"}

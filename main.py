@@ -1,3 +1,7 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -12,14 +16,38 @@ from src.core.logging import setup_logging
 from src.models import *  # noqa: F401, F403
 
 setup_logging()
+
+logger = logging.getLogger(__name__)
+
 from src.routers.transaction import transaction_router
 from src.routers.auth import auth_router
 from src.routers.jwt_auth import jwt_auth_router
 from src.routers.balance import balance_router
+from src.routers.telegram_auth import telegram_auth_router
 
 limiter = Limiter(key_func=get_remote_address)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    polling_task = None
+    if config.BOT_TOKEN:
+        from src.bot.main import create_bot_and_dispatcher
+        bot, dp = create_bot_and_dispatcher()
+        polling_task = asyncio.create_task(dp.start_polling(bot))
+        logger.info("Telegram bot polling started")
+    yield
+    if polling_task:
+        polling_task.cancel()
+        try:
+            await polling_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Telegram bot polling stopped")
+
+
 app = FastAPI(
+    lifespan=lifespan,
     docs_url="/docs" if config.DEBUG else None,
     redoc_url="/redoc" if config.DEBUG else None,
 )
@@ -39,6 +67,7 @@ app.include_router(transaction_router)
 app.include_router(auth_router)
 app.include_router(jwt_auth_router, prefix="/auth", tags=["auth"])
 app.include_router(balance_router)
+app.include_router(telegram_auth_router)
 
 
 @app.get("/")
