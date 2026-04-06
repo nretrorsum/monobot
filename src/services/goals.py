@@ -140,7 +140,10 @@ class GoalsService:
     async def _fetch_daily_expenses(
         self, user_id: UUID, since: datetime.datetime
     ) -> dict[date, int]:
-        from_ts = int(since.timestamp())
+        start_of_day = datetime.datetime.combine(
+            since.date(), datetime.time.min, tzinfo=datetime.timezone.utc
+        )
+        from_ts = int(start_of_day.timestamp())
         to_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
         tx_date = func.date(func.to_timestamp(UserTransaction.time))
