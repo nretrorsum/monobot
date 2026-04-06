@@ -5,3 +5,4 @@ from src.models.account import UserAccount
 from src.models.transaction import UserTransaction
 from src.models.refresh_token import RefreshToken
 from src.models.mcc_category import MccCategory
+from src.models.goals import SpendingConfig, SavingsGoal
