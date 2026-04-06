@@ -1,5 +1,7 @@
+import calendar
 import datetime
 from datetime import date, timedelta
+import logging
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -16,6 +18,8 @@ from src.schemas.goals import (
     SpendingConfigResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class GoalsService:
     def __init__(self, session: AsyncSession):
@@ -24,13 +28,10 @@ class GoalsService:
     # --- SpendingConfig ---
 
     async def get_spending_config(self, user_id: UUID) -> SpendingConfigResponse | None:
-        result = await self.session.execute(
-            select(SpendingConfig).where(SpendingConfig.user_id == user_id)
-        )
-        config = result.scalar_one_or_none()
+        config = await self._get_spending_config_model(user_id)
         if not config:
             return None
-        return SpendingConfigResponse.model_validate(config)
+        return await self._build_config_response(user_id, config)
 
     async def upsert_spending_config(
         self, user_id: UUID, data: SpendingConfigCreate
@@ -42,13 +43,53 @@ class GoalsService:
 
         if config:
             config.daily_limit = data.daily_limit
+            config.income_day = data.income_day
+            config.income_window = data.income_window
         else:
-            config = SpendingConfig(user_id=user_id, daily_limit=data.daily_limit)
+            config = SpendingConfig(
+                user_id=user_id,
+                daily_limit=data.daily_limit,
+                income_day=data.income_day,
+                income_window=data.income_window,
+            )
             self.session.add(config)
 
         await self.session.commit()
         await self.session.refresh(config)
-        return SpendingConfigResponse.model_validate(config)
+        return await self._build_config_response(user_id, config)
+
+    async def _build_config_response(
+        self, user_id: UUID, config: SpendingConfig
+    ) -> SpendingConfigResponse:
+        salary = await self._detect_salary(user_id, config.income_day, config.income_window)
+
+        detected_income = None
+        detected_income_date = None
+        daily_budget = None
+        planned_daily_savings = None
+        planned_monthly_savings = None
+
+        if salary:
+            detected_income, detected_income_date = salary
+            today = date.today()
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            daily_budget = detected_income // days_in_month
+            planned_daily_savings = daily_budget - config.daily_limit
+            planned_monthly_savings = planned_daily_savings * days_in_month
+
+        return SpendingConfigResponse(
+            id=config.id,
+            daily_limit=config.daily_limit,
+            income_day=config.income_day,
+            income_window=config.income_window,
+            created_at=config.created_at,
+            updated_at=config.updated_at,
+            detected_income=detected_income,
+            detected_income_date=detected_income_date,
+            daily_budget=daily_budget,
+            planned_daily_savings=planned_daily_savings,
+            planned_monthly_savings=planned_monthly_savings,
+        )
 
     # --- SavingsGoal CRUD ---
 
@@ -69,8 +110,9 @@ class GoalsService:
         await self.session.commit()
         await self.session.refresh(goal)
 
+        salary = await self._detect_salary(user_id, config.income_day, config.income_window)
         expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config.daily_limit, expenses_by_day)
+        return self._build_response(goal, config, salary, expenses_by_day)
 
     async def get_goals(self, user_id: UUID) -> list[SavingsGoalResponse]:
         config = await self._get_spending_config_model(user_id)
@@ -86,11 +128,12 @@ class GoalsService:
         if not goals:
             return []
 
+        salary = await self._detect_salary(user_id, config.income_day, config.income_window)
         earliest = min(g.created_at for g in goals)
         expenses_by_day = await self._fetch_daily_expenses(user_id, earliest)
 
         return [
-            self._build_response(goal, config.daily_limit, expenses_by_day)
+            self._build_response(goal, config, salary, expenses_by_day)
             for goal in goals
         ]
 
@@ -98,8 +141,9 @@ class GoalsService:
         config = await self._require_spending_config(user_id)
         goal = await self._get_goal_or_404(user_id, goal_id)
 
+        salary = await self._detect_salary(user_id, config.income_day, config.income_window)
         expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config.daily_limit, expenses_by_day)
+        return self._build_response(goal, config, salary, expenses_by_day)
 
     async def update_goal(
         self, user_id: UUID, goal_id: UUID, data: SavingsGoalUpdate
@@ -127,15 +171,72 @@ class GoalsService:
         await self.session.commit()
         await self.session.refresh(goal)
 
+        salary = await self._detect_salary(user_id, config.income_day, config.income_window)
         expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config.daily_limit, expenses_by_day)
+        return self._build_response(goal, config, salary, expenses_by_day)
 
     async def delete_goal(self, user_id: UUID, goal_id: UUID) -> None:
         goal = await self._get_goal_or_404(user_id, goal_id)
         await self.session.delete(goal)
         await self.session.commit()
 
-    # --- Progress calculation ---
+    # --- Salary detection ---
+
+    async def _detect_salary(
+        self, user_id: UUID, income_day: int, window: int
+    ) -> tuple[int, date] | None:
+        """Find the largest positive transaction near income_day ±window for the current budget period."""
+        today = date.today()
+
+        # Determine which month's salary to look for
+        if today.day >= income_day - window:
+            ref_year, ref_month = today.year, today.month
+        else:
+            # Look in previous month
+            first_of_current = today.replace(day=1)
+            prev = first_of_current - timedelta(days=1)
+            ref_year, ref_month = prev.year, prev.month
+
+        # Clamp income_day to actual days in that month
+        max_day = calendar.monthrange(ref_year, ref_month)[1]
+        clamped_day = min(income_day, max_day)
+        center = date(ref_year, ref_month, clamped_day)
+
+        window_start = center - timedelta(days=window)
+        window_end = center + timedelta(days=window)
+
+        from_ts = int(datetime.datetime.combine(
+            window_start, datetime.time.min, tzinfo=datetime.timezone.utc
+        ).timestamp())
+        to_ts = int(datetime.datetime.combine(
+            window_end, datetime.time.max, tzinfo=datetime.timezone.utc
+        ).timestamp())
+
+        # Largest positive transaction in window
+        query = (
+            select(UserTransaction.amount, UserTransaction.time)
+            .where(
+                UserTransaction.user_id == user_id,
+                UserTransaction.amount > 0,
+                UserTransaction.time >= from_ts,
+                UserTransaction.time <= to_ts,
+            )
+            .order_by(UserTransaction.amount.desc())
+            .limit(1)
+        )
+
+        result = await self.session.execute(query)
+        row = result.first()
+
+        if not row:
+            return None
+
+        tx_date = datetime.datetime.fromtimestamp(
+            row.time, tz=datetime.timezone.utc
+        ).date()
+        return (row.amount, tx_date)
+
+    # --- Daily expenses ---
 
     async def _fetch_daily_expenses(
         self, user_id: UUID, since: datetime.datetime
@@ -165,22 +266,34 @@ class GoalsService:
         result = await self.session.execute(query)
         return {row.day: row.expenses for row in result.all()}
 
+    # --- Progress calculation ---
+
     def _build_response(
         self,
         goal: SavingsGoal,
-        daily_limit: int,
+        config: SpendingConfig,
+        salary: tuple[int, date] | None,
         expenses_by_day: dict[date, int],
     ) -> SavingsGoalResponse:
         today = date.today()
         start_date = goal.created_at.date()
         total_days = max((today - start_date).days + 1, 1)
 
-        # Calculate total saved
+        # Calculate daily_budget from detected salary
+        if salary:
+            monthly_income, _ = salary
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            daily_budget = monthly_income // days_in_month
+        else:
+            # No salary detected — can't calculate real savings
+            daily_budget = config.daily_limit  # fallback: assume budget = limit (0 savings)
+
+        # Calculate total saved: daily_budget - actual_expenses per day
         total_saved_raw = 0
         for i in range(total_days):
             d = start_date + timedelta(days=i)
             actual_expenses = expenses_by_day.get(d, 0)
-            total_saved_raw += daily_limit - actual_expenses
+            total_saved_raw += daily_budget - actual_expenses
 
         current_saved = int(total_saved_raw * goal.allocation_percent / 100)
         daily_savings_rate = current_saved // total_days

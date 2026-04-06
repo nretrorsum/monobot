@@ -19,6 +19,8 @@ class SpendingConfig(BaseUuidModel):
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), unique=True, index=True)
     daily_limit: Mapped[int] = mapped_column(BigInteger)  # kopecks
+    income_day: Mapped[int] = mapped_column(SmallInteger, nullable=True)  # 1-31, day of month when salary arrives
+    income_window: Mapped[int] = mapped_column(SmallInteger, default=3)  # ±days tolerance
 
 
 class SavingsGoal(BaseUuidModel):

@@ -8,13 +8,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class SpendingConfigCreate(BaseModel):
     daily_limit: int = Field(gt=0)
+    income_day: int = Field(ge=1, le=31)
+    income_window: int = Field(default=3, ge=1, le=7)
 
 
 class SpendingConfigResponse(BaseModel):
     id: UUID
     daily_limit: int
+    income_day: int
+    income_window: int
     created_at: datetime
     updated_at: datetime
+
+    # Dynamic fields (from salary detection)
+    detected_income: int | None
+    detected_income_date: date | None
+    daily_budget: int | None
+    planned_daily_savings: int | None
+    planned_monthly_savings: int | None
 
     model_config = ConfigDict(from_attributes=True)
 
