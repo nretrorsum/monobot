@@ -16,6 +16,7 @@ from src.schemas.goals import (
     SavingsGoalUpdate,
     SpendingConfigCreate,
     SpendingConfigResponse,
+    UpdateSpendingSum,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,18 @@ class GoalsService:
         config = await self._get_spending_config_model(user_id)
         if not config:
             return None
+        return await self._build_config_response(user_id, config)
+
+    async def upsert_daily_limit(
+        self, user_id: UUID, data: UpdateSpendingSum,
+    ) -> SpendingConfigResponse:
+        config = await self._get_spending_config_model(user_id)
+        if config:
+            config.daily_limit = data.daily_limit
+        else:
+            raise HTTPException(status_code=404, detail="Config not found")
+        await self.session.commit()
+        await self.session.refresh(config)
         return await self._build_config_response(user_id, config)
 
     async def upsert_spending_config(

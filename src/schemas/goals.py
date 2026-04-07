@@ -6,10 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # --- SpendingConfig ---
 
+class UpdateSpendingSum(BaseModel):
+    daily_limit: int = Field(gt=0)
+
 class SpendingConfigCreate(BaseModel):
     daily_limit: int = Field(gt=0)
-    income_day: int = Field(ge=1, le=31)
-    income_window: int = Field(default=3, ge=1, le=7)
+    income_day: int | None = Field(ge=1, le=31)
+    income_window: int | None= Field(default=3, ge=1, le=7)
 
 
 class SpendingConfigResponse(BaseModel):

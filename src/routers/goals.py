@@ -10,6 +10,7 @@ from src.schemas.goals import (
     SavingsGoalResponse,
     SavingsGoalUpdate,
     SpendingConfigCreate,
+    UpdateSpendingSum,
     SpendingConfigResponse,
 )
 from src.services.goals import GoalsService
@@ -30,12 +31,12 @@ async def get_spending_config(
 
 @goals_router.put("/config")
 async def upsert_spending_config(
-    data: SpendingConfigCreate,
+    data: UpdateSpendingSum,
     user: CurrentUser,
     session: AsyncSession = Depends(get_session),
 ) -> SpendingConfigResponse:
     service = GoalsService(session)
-    return await service.upsert_spending_config(user.id, data)
+    return await service.upsert_daily_limit(user.id, data)
 
 
 # --- SavingsGoal ---
