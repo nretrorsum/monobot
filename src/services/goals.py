@@ -140,8 +140,8 @@ class GoalsService:
         await self.session.refresh(goal)
 
         salary = await self._detect_salary(user_id, config.income_day, config.income_window)
-        expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config, salary, expenses_by_day)
+        # expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
+        return self._build_response(goal, config, salary, {})
 
     async def get_goals(self, user_id: UUID) -> list[SavingsGoalResponse]:
         config = await self._get_spending_config_model(user_id)
@@ -158,11 +158,11 @@ class GoalsService:
             return []
 
         salary = await self._detect_salary(user_id, config.income_day, config.income_window)
-        earliest = min(g.created_at for g in goals)
-        expenses_by_day = await self._fetch_daily_expenses(user_id, earliest)
+        # earliest = min(g.created_at for g in goals)
+        # expenses_by_day = await self._fetch_daily_expenses(user_id, earliest)
 
         return [
-            self._build_response(goal, config, salary, expenses_by_day)
+            self._build_response(goal, config, salary, {})
             for goal in goals
         ]
 
@@ -171,8 +171,8 @@ class GoalsService:
         goal = await self._get_goal_or_404(user_id, goal_id)
 
         salary = await self._detect_salary(user_id, config.income_day, config.income_window)
-        expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config, salary, expenses_by_day)
+        # expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
+        return self._build_response(goal, config, salary, {})
 
     async def update_goal(
         self, user_id: UUID, goal_id: UUID, data: SavingsGoalUpdate
@@ -201,8 +201,8 @@ class GoalsService:
         await self.session.refresh(goal)
 
         salary = await self._detect_salary(user_id, config.income_day, config.income_window)
-        expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
-        return self._build_response(goal, config, salary, expenses_by_day)
+        # expenses_by_day = await self._fetch_daily_expenses(user_id, goal.created_at)
+        return self._build_response(goal, config, salary, {})
 
     async def delete_goal(self, user_id: UUID, goal_id: UUID) -> None:
         goal = await self._get_goal_or_404(user_id, goal_id)
@@ -322,12 +322,17 @@ class GoalsService:
             # No salary detected — can't calculate real savings
             daily_budget = config.daily_limit  # fallback: assume budget = limit (0 savings)
 
-        # Calculate total saved: daily_budget - actual_expenses per day
-        total_saved_raw = 0
-        for i in range(total_days):
-            d = start_date + timedelta(days=i)
-            actual_expenses = expenses_by_day.get(d, 0)
-            total_saved_raw += daily_budget - actual_expenses
+        # --- Planned savings formula ---
+        # savings per day = daily_budget - daily_limit (fixed, ignores actual expenses)
+        planned_savings_per_day = max(daily_budget - config.daily_limit, 0)
+        total_saved_raw = total_days * planned_savings_per_day
+
+        # --- Actual-expenses formula (kept for reference) ---
+        # total_saved_raw = 0
+        # for i in range(total_days):
+        #     d = start_date + timedelta(days=i)
+        #     actual_expenses = expenses_by_day.get(d, 0)
+        #     total_saved_raw += daily_budget - actual_expenses
 
         current_saved = int(total_saved_raw * goal.allocation_percent / 100)
         daily_savings_rate = current_saved // total_days
