@@ -16,7 +16,7 @@ from src.schemas.goals import (
     SavingsGoalUpdate,
     SpendingConfigCreate,
     SpendingConfigResponse,
-    UpdateSpendingSum,
+    UpdateSpendingSum, UpdateSetIncome,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,18 @@ class GoalsService:
         await self.session.refresh(config)
         return await self._build_config_response(user_id, config)
 
+    async def upsert_set_income(
+        self, user_id: UUID, data: UpdateSetIncome,
+    ) -> SpendingConfigResponse:
+        config = await self._get_spending_config_model(user_id)
+        if config:
+            config.set_income = data.set_income
+        else:
+            raise HTTPException(status_code=404, detail="Config not found")
+        await self.session.commit()
+        await self.session.refresh(config)
+        return await self._build_config_response(user_id, config)
+
     async def upsert_spending_config(
         self, user_id: UUID, data: SpendingConfigCreate
     ) -> SpendingConfigResponse:
@@ -64,6 +76,7 @@ class GoalsService:
                 daily_limit=data.daily_limit,
                 income_day=data.income_day,
                 income_window=data.income_window,
+                set_income=data.set_income,
             )
             self.session.add(config)
 
@@ -86,8 +99,11 @@ class GoalsService:
             detected_income, detected_income_date = salary
             today = date.today()
             days_in_month = calendar.monthrange(today.year, today.month)[1]
+            # logger.info(f"Found {days_in_month} days in month {today.month}")
             daily_budget = detected_income // days_in_month
+            # logger.info(f"Found {daily_budget} days in month {today.month}")
             planned_daily_savings = daily_budget - config.daily_limit
+            # logger.info(f"Found {planned_daily_savings} days planned")
             planned_monthly_savings = planned_daily_savings * days_in_month
 
         return SpendingConfigResponse(
@@ -197,8 +213,13 @@ class GoalsService:
 
     async def _detect_salary(
         self, user_id: UUID, income_day: int, window: int
-    ) -> tuple[int, date] | None:
+    ) -> tuple[int, date | None] | None:
         """Find the largest positive transaction near income_day ±window for the current budget period."""
+        user_income = await self._get_spending_config_model(user_id)
+
+        if user_income.set_income:
+            return (int(user_income.set_income), None)
+
         today = date.today()
 
         # Determine which month's salary to look for
@@ -285,7 +306,7 @@ class GoalsService:
         self,
         goal: SavingsGoal,
         config: SpendingConfig,
-        salary: tuple[int, date] | None,
+        salary: tuple[int, date | None] | None,
         expenses_by_day: dict[date, int],
     ) -> SavingsGoalResponse:
         today = date.today()

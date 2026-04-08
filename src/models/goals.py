@@ -21,6 +21,7 @@ class SpendingConfig(BaseUuidModel):
     daily_limit: Mapped[int] = mapped_column(BigInteger)  # kopecks
     income_day: Mapped[int] = mapped_column(SmallInteger, nullable=True)  # 1-31, day of month when salary arrives
     income_window: Mapped[int] = mapped_column(SmallInteger, default=3, nullable=True)  # ±days tolerance
+    set_income: Mapped[int] = mapped_column(BigInteger, nullable=True)
 
 
 class SavingsGoal(BaseUuidModel):

@@ -10,6 +10,7 @@ from src.schemas.goals import (
     SavingsGoalResponse,
     SavingsGoalUpdate,
     SpendingConfigCreate,
+    UpdateSetIncome,
     UpdateSpendingSum,
     SpendingConfigResponse,
 )
@@ -37,6 +38,15 @@ async def upsert_spending_config(
 ) -> SpendingConfigResponse:
     service = GoalsService(session)
     return await service.upsert_daily_limit(user.id, data)
+
+@goals_router.put("/config/set_income")
+async def set_income(
+    data: UpdateSetIncome,
+    user: CurrentUser,
+    session: AsyncSession = Depends(get_session),
+) -> SpendingConfigResponse:
+    service = GoalsService(session)
+    return await service.upsert_set_income(user.id, data)
 
 
 # --- SavingsGoal ---

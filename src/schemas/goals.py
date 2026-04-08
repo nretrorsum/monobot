@@ -9,11 +9,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class UpdateSpendingSum(BaseModel):
     daily_limit: int = Field(gt=0)
 
+class UpdateSetIncome(BaseModel):
+    set_income: int | None = Field(default=0, ge=0)
+
 class SpendingConfigCreate(BaseModel):
     daily_limit: int = Field(gt=0)
     income_day: int | None = Field(ge=1, le=31)
     income_window: int | None= Field(default=3, ge=1, le=7)
-
+    set_income: int | None = Field(default=0, ge=0)
 
 class SpendingConfigResponse(BaseModel):
     id: UUID
